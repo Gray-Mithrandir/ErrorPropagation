@@ -162,7 +162,9 @@ cython_debug/
 
 # Data source folder
 data/
-# Logs folde
+# Logs folder
 logs/
 # Training reports
-reports/t
+reports/
+# Train history folder
+history/

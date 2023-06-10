@@ -37,7 +37,7 @@ def get_dataset(reduction: float, train: bool, balance: bool) -> tf.data.Dataset
     class_item_count = {}
     class_dataset = {}
     for class_index, class_name in enumerate(origin_ds.class_names):
-        _filter = _create_class_filter(class_index)
+        _filter = create_class_filter(class_index)
         class_dataset[class_name] = origin_ds.filter(_filter)
         _counter = _create_counter()
         class_item_count[class_name] = (
@@ -46,7 +46,7 @@ def get_dataset(reduction: float, train: bool, balance: bool) -> tf.data.Dataset
     logger.info("Total images before reduction %s", class_item_count)
     for class_name in origin_ds.class_names:
         original_size = class_item_count[class_name]
-        class_item_count[class_name] = int(original_size * reduction)
+        class_item_count[class_name] = int(original_size * (1 - reduction))
         class_dataset[class_name] = (
             class_dataset[class_name]
             .shuffle(original_size)
@@ -64,6 +64,7 @@ def get_dataset(reduction: float, train: bool, balance: bool) -> tf.data.Dataset
     return tf.data.Dataset.sample_from_datasets(
         list(dataset for dataset in class_dataset.values())
     )
+
 
 def get_test_dataset() -> tf.data.Dataset:
     """Load test dataset
@@ -85,13 +86,35 @@ def get_test_dataset() -> tf.data.Dataset:
     )
 
 
-def _create_class_filter(metric):
+def create_class_filter(metric):
     """Creating callable for class filter"""
 
     def _filter(data, label):  # pylint: disable = unused-argument
         return tf.math.argmax(label) == metric
 
     return _filter
+
+
+def prefetch_dataset(dataset: tf.data.Dataset, batch_size: int) -> tf.data.Dataset:
+    """Optimize dataset set for fast reading
+
+    Parameters
+    ----------
+    dataset: tf.data.Dataset
+        Dataset to load
+    batch_size: int
+        Dataset batch size
+
+    Returns
+    -------
+    dataset: tf.data.Dataset
+        Prefetched dataset
+    """
+    return dataset.batch(
+        batch_size=batch_size,
+        drop_remainder=True,
+        num_parallel_calls=tf.data.AUTOTUNE,
+    ).prefetch(buffer_size=tf.data.AUTOTUNE)
 
 
 def _create_counter():
