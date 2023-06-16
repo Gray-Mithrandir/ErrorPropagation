@@ -3,45 +3,43 @@ import json
 import logging
 from contextlib import redirect_stdout
 from itertools import product
+from pathlib import Path
+from typing import Tuple
 
-from collections.abc import Collection
 import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from matplotlib import use
-from numpy import ndarray
 from sklearn.metrics import classification_report, confusion_matrix
 
-from config import PlotSettings, TrainInfo
-from load_dataset import create_class_filter, get_test_dataset
+from config import PlotSettings
+from load_dataset import create_class_filter
 
 
-def plot_model(model: tf.keras.models.Model, train_info: TrainInfo) -> None:
+def plot_model(model: tf.keras.models.Model, export_path: Path) -> None:
     """Save model info and graphs
 
     Parameters
     ----------
     model: Model
         Model to save
-    train_info: TrainInfo
-        Train information
+    export_path: Path
+        Where to export model plots
     """
     logger = logging.getLogger("raido.dataset")
     settings = PlotSettings()
     # Save model
-    logger.info(
-        "Saving model plots - %s", train_info.report_path / f"{train_info.safe_name}"
-    )
+    logger.info("Saving model plots - %s", export_path)
     with open(
-        train_info.report_path / f"{train_info.safe_name}.txt",
+        export_path / "model.txt",
         mode="w",
         encoding="utf-8",
     ) as summary_fh:
         with redirect_stdout(summary_fh):
-            model.summary(line_length=256)
+            model.summary(line_length=128)
     tf.keras.utils.plot_model(
         model,
-        to_file=str(train_info.report_path / f"{train_info.safe_name}.png"),
+        to_file=str(export_path / "model.png"),
         show_shapes=True,
         show_dtype=False,
         show_layer_names=True,
@@ -53,15 +51,15 @@ def plot_model(model: tf.keras.models.Model, train_info: TrainInfo) -> None:
     )
 
 
-def plot_history(history: tf.keras.callbacks.History, train_info: TrainInfo) -> None:
+def plot_history(history: tf.keras.callbacks.History, export_path: Path) -> None:
     """Save accuracy and validation plots
 
     Parameters
     ----------
     history: History
         History object from 'model.fit'
-    train_info: TrainInfo
-        Model train information
+    export_path: Path
+        Where to save plot
     """
     plot_settings = PlotSettings()
     acc = history.history["accuracy"]
@@ -88,46 +86,52 @@ def plot_history(history: tf.keras.callbacks.History, train_info: TrainInfo) -> 
     big_axes[1].legend(loc="upper right")
     big_axes[1].set_title("Training and Validation Loss")
 
-    plt.savefig(train_info.report_path / "train_history.png")
+    plt.savefig(export_path)
     plt.close()
 
 
-def plot_test_dataset_evaluation(
-    model: tf.keras.models.Model, train_info: TrainInfo
+def plot_performance(
+    model: tf.keras.models.Model,
+    dataset: tf.data.Dataset,
+    labels: Tuple[str, ...],
+    num_images: int,
+    export_path: Path,
 ) -> None:
-    """Evaluate model on test set
+    """Plot sample images and model prediction
 
     Parameters
     ----------
     model: Model
         Model to evaluate
-    train_info: TrainInfo
-        Model train information
+    dataset: tf.data.Dataset
+        Dataset to evaluate on
+    labels: Tuple[str, ...]
+        Labels to plot
+    num_images: int
+        Number of images to plot
+    export_path: Path
+        Filepath to save
     """
-    sample_images = 3
     plot_settings = PlotSettings()
-    probability_model = tf.keras.Model([model, tf.keras.layers.Softmax()], inputs=(1, 128, 128, 1)4)
-    test_ds = get_test_dataset()
-    class_names = test_ds.class_names
 
     use("Agg")
     fig = plt.figure(figsize=plot_settings.plot_size, dpi=plot_settings.plot_dpi)
     fig.tight_layout()
-    subfigs = fig.subfigures(nrows=len(class_names), ncols=1)
-    for class_index, (class_name, subfig) in enumerate(zip(class_names, subfigs)):
+    subfigs = fig.subfigures(nrows=len(labels), ncols=1)
+    for class_index, (class_name, subfig) in enumerate(zip(labels, subfigs)):
         subfig.suptitle(class_name.capitalize())
-        axs = subfig.subplots(nrows=1, ncols=2 * sample_images)
+        axs = subfig.subplots(nrows=1, ncols=2 * len(labels))
 
-        class_ds = test_ds.filter(create_class_filter(class_index)).take(sample_images)
-        for index, (image, class_tensor) in enumerate(iter(class_ds)):
-            true_label = class_names[np.argmax(class_tensor.numpy())]
-            predictions = probability_model.predict(tf.data.Dataset.from_tensors(image).batch(1), verbose=0).numpy()
-            predict_label = class_names[int(np.argmax(predictions))]
+        class_ds = dataset.filter(create_class_filter(class_index)).take(num_images)
+        for index, (image, class_tensor) in enumerate(iter(class_ds.batch(1))):
+            true_label = labels[np.argmax(class_tensor.numpy())]
+            predictions = _numpy_softmax(model.predict(image), axis=1)
+            predict_label = labels[int(np.argmax(predictions, axis=1))]
 
             axs[2 * index].grid(False)
             axs[2 * index].axes.get_xaxis().set_ticks([])
             axs[2 * index].axes.get_yaxis().set_ticks([])
-            axs[2 * index].imshow(image.numpy(), cmap=plt.get_cmap("binary"))
+            axs[2 * index].imshow(image[0].numpy(), cmap=plt.get_cmap("binary"))
             if true_label == predict_label:
                 color = "blue"
             else:
@@ -140,12 +144,12 @@ def plot_test_dataset_evaluation(
             )
 
             axs[2 * index + 1].grid(False)
-            axs[2 * index + 1].axes.get_xaxis().set_ticks(range(len(class_names)))
+            axs[2 * index + 1].axes.get_xaxis().set_ticks(range(len(labels)))
             axs[2 * index + 1].axes.get_yaxis().set_ticks(
                 list(tick for tick in np.arange(0, 1, 0.1))
             )
             this_plot = axs[2 * index + 1].bar(
-                range(len(class_names)),
+                range(len(labels)),
                 predictions.flatten(),
                 color="#777777",
             )
@@ -153,33 +157,35 @@ def plot_test_dataset_evaluation(
             this_plot[class_index].set_color(color)
             axs[2 * index + 1].tick_params(axis="both", which="major", labelsize=6)
 
-    plt.savefig(train_info.report_path / "evaluation.png")
+    plt.savefig(export_path)
     plt.close()
 
 
 def plot_confusion_matrix(
-    y_true: Collection[ndarray],
-    y_pred: Collection[ndarray],
-    labels: Collection[str],
-    train_info: TrainInfo,
-    prefix: str,
+    model: tf.keras.models.Model,
+    dataset: tf.data.Dataset,
+    labels: Tuple[str, ...],
+    export_path: Path,
 ) -> None:
-    """Save confusion matrix
+    """Plot confusion matrix
 
     Parameters
     ----------
-    y_true: list[ndarray[int]]
-        True labels
-    y_pred: list[ndarray[int]]
-        Predicted labels
-    labels: Iterable[str]
-        Classes names
-    train_info: TrainInfo
-        Model training information
-    prefix: str
-        Filename prefix
+    model: Model
+        Model to evaluate
+    dataset: tf.data.Dataset
+        Dataset to evaluate on
+    labels: Tuple[str, ...]
+        Labels to plot
+    export_path: Path
+        Filepath to save
     """
     plot_settings = PlotSettings()
+    y_true = []
+    y_pred = []
+    for image, class_tensor in iter(dataset.batch(1)):
+        y_true.append(np.argmax(class_tensor))
+        y_pred.append(np.argmax(model.predict(image), axis=1))
     result = confusion_matrix(y_true, y_pred, normalize="pred")
 
     accuracy = np.trace(result) / np.sum(result).astype("float")
@@ -210,14 +216,44 @@ def plot_confusion_matrix(
 
     plt.ylabel("True label")
     plt.xlabel(f"Predicted label\naccuracy={accuracy:0.4f}; misclass={misclass:0.4f}")
-    plt.savefig(train_info.report_path / f"confusion_matrix_{prefix}.png")
+    plt.savefig(export_path)
     plt.close()
-    metric_path = train_info.report_path / f"extra_metrics_{prefix}.txt"
+
+
+def save_classification_report(
+    model: tf.keras.models.Model,
+    dataset: tf.data.Dataset,
+    labels: Tuple[str, ...],
+    export_path: Path,
+) -> None:
+    """Export classification report
+
+    Parameters
+    ----------
+    model: Model
+        Model to evaluate
+    dataset: tf.data.Dataset
+        Dataset to evaluate on
+    labels: Tuple[str, ...]
+        Labels to plot
+    export_path: Path
+        Filepath to save
+    """
+    y_true = []
+    y_pred = []
+    for image, class_tensor in iter(dataset.batch(1)):
+        y_true.append(np.argmax(class_tensor))
+        y_pred.append(np.argmax(model.predict(image), axis=1))
     additional_metrics = classification_report(y_true, y_pred, target_names=labels)
-    metric_path.write_text(additional_metrics, encoding="utf-8")
-    metric_json_path = train_info.report_path / f"extra_metrics_{prefix}.json"
+    export_path.with_suffix(".txt").write_text(additional_metrics, encoding="utf-8")
     additional_metrics = classification_report(
         y_true, y_pred, target_names=labels, output_dict=True
     )
-    with open(metric_json_path, "w", encoding="utf-8") as metric_fh:
+    with open(export_path.with_suffix(".json"), "w", encoding="utf-8") as metric_fh:
         json.dump(additional_metrics, metric_fh, indent=4)
+
+
+def _numpy_softmax(x, axis=None):
+    x = x - x.max(axis=axis, keepdims=True)
+    y = np.exp(x)
+    return y / y.sum(axis=axis, keepdims=True)
