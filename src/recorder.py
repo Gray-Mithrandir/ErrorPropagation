@@ -165,9 +165,9 @@ class TrainStatistics:
                     "Cell found at coordinate %s", row[offset_col].coordinate
                 )
                 return row[offset_col].coordinate
-        sheet[f"A{row_index}"] = train_info.reduction
-        sheet[f"B{row_index}"] = train_info.corruption
-        cell_coord = f"{get_column_letter(offset_col)}{row_index}"
+        sheet[f"A{row_index+1}"] = train_info.reduction
+        sheet[f"B{row_index+1}"] = train_info.corruption
+        cell_coord = f"{get_column_letter(offset_col)}{row_index+1}"
         self.logger.info("Cell not found.Appending %s", cell_coord)
         return cell_coord
 
@@ -193,6 +193,9 @@ class TrainStatistics:
         )
         row_index = 3
         for row_index, row in enumerate(sheet.iter_rows(min_row=row_index, min_col=1), start=row_index):
+            self.logger.debug(
+                "Testing cell at coordinate %s", row[offset_col].coordinate
+            )
             if row[0].value == train_info.reduction and row[1].value == train_info.corruption:
                 self.logger.debug(
                     "Cell found at coordinate %s", row[offset_col].coordinate
@@ -202,12 +205,12 @@ class TrainStatistics:
                     row[offset_col + 1].coordinate,
                     row[offset_col + 2].coordinate,
                 )
-        sheet[f"A{row_index}"] = train_info.reduction
-        sheet[f"B{row_index}"] = train_info.corruption
+        sheet[f"A{row_index+1}"] = train_info.reduction
+        sheet[f"B{row_index+1}"] = train_info.corruption
         cell_coord = (
-            f"{get_column_letter(offset_col+1)}{row_index}",
-            f"{get_column_letter(offset_col+2)}{row_index}",
-            f"{get_column_letter(offset_col+3)}{row_index}",
+            f"{get_column_letter(offset_col+1)}{row_index+1}",
+            f"{get_column_letter(offset_col+2)}{row_index+1}",
+            f"{get_column_letter(offset_col+3)}{row_index+1}",
         )
         self.logger.info("Cell not found.Appending %s", cell_coord)
         return cell_coord
