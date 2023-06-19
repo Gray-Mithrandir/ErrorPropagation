@@ -256,7 +256,7 @@ class TrainStatistics:
         str
             First empty or matched cell
         """
-        offset_col = 2 + list(_type for _type in TrainType).index(train_info.train_type)
+        offset_col = 3 + list(_type for _type in TrainType).index(train_info.train_type)
         row_index = 1
         for row_index, row in enumerate(
             sheet.iter_rows(min_row=row_index, min_col=1, max_col=5), start=row_index
