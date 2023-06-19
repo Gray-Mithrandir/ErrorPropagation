@@ -80,9 +80,9 @@ class TrainStatistics:
                     _class_ds = test_ds.filter(create_class_filter(class_index)).batch(
                         1
                     )
-                    loss, accuracy = model.evaluate(_class_ds.batch(16))
+                    loss, accuracy = model.evaluate(_class_ds)
                 else:
-                    loss, accuracy = model.evaluate(test_ds)
+                    loss, accuracy = model.evaluate(test_ds.batch(16))
                 workbook["AccuracyPerClass"][a_cell] = accuracy
                 workbook["LossPerClass"][l_cell] = loss
 

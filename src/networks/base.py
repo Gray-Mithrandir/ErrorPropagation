@@ -55,26 +55,22 @@ class NetworkInterface(ABC):
         """
 
     @property
-    def reduction(self) -> float:
+    def reduction(self) -> int:
         """Dataset reduction fraction"""
         return self._reduction
 
     @reduction.setter
-    def reduction(self, value: float):
-        if value > 1 or value < 0:
-            raise ValueError("Reduction fraction must be in range [0-1]")
+    def reduction(self, value: int):
         self.logger.info("Updating dataset reduction to %s", value)
         self._reduction = value
 
     @property
-    def corruption(self) -> float:
+    def corruption(self) -> int:
         """Dataset label corruption fraction"""
         return self._corruption
 
     @corruption.setter
-    def corruption(self, value: float):
-        if value > 1 or value < 0:
-            raise ValueError("Corruption fraction must be in range [0-1]")
+    def corruption(self, value: int):
         self.logger.info("Updating dataset label corruption to %s", value)
         self._corruption = value
 
@@ -122,7 +118,7 @@ class NetworkInterface(ABC):
         _path = Path(
             "history",
             self.name(),
-            f"{self.train_type.value}_c{self.corruption * 100:03.0f}_r{self.reduction * 100:03.0f}",
+            f"{self.train_type.value}_c{self.corruption}_r{self.reduction}",
         )
         _path.mkdir(parents=True, exist_ok=True)
         return _path
@@ -139,7 +135,7 @@ class NetworkInterface(ABC):
         _path = Path(
             "reports",
             self.name(),
-            f"{self.train_type.value}_c{self.corruption * 100:03.0f}_r{self.reduction * 100:03.0f}",
+            f"{self.train_type.value}_c{self.corruption}_r{self.reduction}",
         )
         _path.mkdir(parents=True, exist_ok=True)
         return _path
@@ -175,9 +171,9 @@ class NetworkInterface(ABC):
         """
         model = self.create_model(augment=True)
         self.logger.info(
-            "Starting training on dataset reduction of %05.1f%% with corruption %05.1f%%",
-            self.reduction * 100.0,
-            self.corruption * 100.0,
+            "Starting training on dataset reduction of %d%% with corruption %d%%",
+            self.reduction,
+            self.corruption,
         )
         train_ds = get_dataset(
             reduction=self.reduction / 100.0,
