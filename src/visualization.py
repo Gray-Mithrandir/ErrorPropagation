@@ -4,12 +4,14 @@ import logging
 from contextlib import redirect_stdout
 from itertools import product
 from pathlib import Path
-from typing import Tuple
+from typing import Iterable, Tuple
 
 import numpy as np
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from matplotlib import use
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from scipy.interpolate import Rbf
 from sklearn.metrics import classification_report, confusion_matrix
 
 from config import PlotSettings
@@ -251,6 +253,69 @@ def save_classification_report(
     )
     with open(export_path.with_suffix(".json"), "w", encoding="utf-8") as metric_fh:
         json.dump(additional_metrics, metric_fh, indent=4)
+
+
+def plot_summary(
+    x_axis: Iterable[float],
+    y_axis: Iterable[float],
+    values: Iterable[Iterable[float]],
+    titles: Iterable[str],
+    invert_bar: bool,
+    export_path: Path,
+) -> None:
+    """Plot run summary
+
+    Parameters
+    ----------
+    x_axis:Iterable[float]
+        X axis values (data reduction percent)
+    y_axis: Iterable[float]
+        Y axis values (label corruption percent)
+    values: Iterable[Iterable[float]]
+        List of performance metrics
+    titles: Iterable[str]
+        List of metrics names. Must be same length as `values`
+    invert_bar: bool
+        If set inverse color bar
+    export_path: Path
+        Filename to save plot
+    """
+    _settings = PlotSettings()
+    use("Agg")
+    fig = plt.figure(figsize=_settings.plot_size, dpi=_settings.plot_dpi)
+    fig.tight_layout()
+    subfigs = fig.subplots(nrows=len(titles), ncols=1, sharex=True)
+
+    x = np.array(x_axis)
+    y = np.array(y_axis)
+    for index, (z_vals, title, subfig) in enumerate(zip(values, titles, subfigs)):
+        z = np.array(z_vals)
+        if index == len(titles) - 1:
+            subfig.set_xlabel("Reduction")
+        subfig.set_ylabel("Corruption")
+        subfig.set_title(title)
+        xi, yi = np.linspace(x.min(), x.max(), np.unique(x).size), np.linspace(
+            y.min(), y.max(), np.unique(y).size
+        )
+        xi, yi = np.meshgrid(xi, yi)
+
+        # Interpolate
+        rbf = Rbf(x, y, z, function="linear")
+        zi = rbf(xi, yi)
+
+        surf = subfig.imshow(
+            zi,
+            vmin=z.min(),
+            vmax=z.max(),
+            origin="lower",
+            extent=[x.min(), x.max(), y.min(), y.max()],
+            cmap=plt.get_cmap("RdBu_r") if invert_bar else plt.get_cmap("RdBu"),
+        )
+        divider = make_axes_locatable(subfig)
+        cax = divider.append_axes("right", size="5%", pad=0.1)
+        plt.colorbar(surf, cax=cax)
+    plt.savefig(export_path)
+    plt.close()
 
 
 def _numpy_softmax(x, axis=None):

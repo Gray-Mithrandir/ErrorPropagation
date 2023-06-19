@@ -4,8 +4,8 @@ import tensorflow as tf
 from networks.base import NetworkInterface
 
 
-
 class Network(NetworkInterface):
+    """LeNet-5 implementation"""
     @staticmethod
     def name() -> str:
         return "LeNet5"

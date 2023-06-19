@@ -8,13 +8,9 @@ import tensorflow as tf
 
 import visualization
 from config import AugmentationSettings, PreProcessing
-from load_dataset import (
-    get_dataset,
-    get_test_dataset,
-    get_train_weights,
-    prefetch_dataset,
-)
-from tracker import TrainPoint, TrainType
+from load_dataset import (get_dataset, get_test_dataset, get_train_weights,
+                          prefetch_dataset)
+from tracker import TrainInfo, TrainType
 
 
 class NetworkInterface(ABC):
@@ -106,9 +102,9 @@ class NetworkInterface(ABC):
         self._corrupted_labels = value
 
     @property
-    def train_point(self) -> TrainPoint:
+    def train_point(self) -> TrainInfo:
         """Return train point"""
-        return TrainPoint(
+        return TrainInfo(
             reduction=self.reduction,
             corruption=self.corruption,
             train_type=self.train_type,
@@ -184,20 +180,20 @@ class NetworkInterface(ABC):
             self.corruption * 100.0,
         )
         train_ds = get_dataset(
-            reduction=self.reduction,
+            reduction=self.reduction / 100.0,
             train=True,
             balance=self.train_type == TrainType.BALANCED,
             swap_labels=("covid19", "pneumonia"),
-            swap_probability=self.corruption,
+            swap_probability=self.corruption / 100.0,
             export_path=self.report_path,
         )
         prefetched_ds = prefetch_dataset(train_ds, batch_size=self.batch_size)
         validation_ds = get_dataset(
-            reduction=self.reduction,
+            reduction=self.reduction / 100.0,
             train=False,
             balance=False,
             swap_labels=("covid19", "pneumonia"),
-            swap_probability=self.corruption,
+            swap_probability=self.corruption / 100.0,
             export_path=self.report_path,
         )
 
@@ -246,11 +242,11 @@ class NetworkInterface(ABC):
         )
         model.load_weights(self.checkpoint_path)
         validation_ds = get_dataset(
-            reduction=self.reduction,
+            reduction=self.reduction / 100.0,
             train=False,
             balance=False,
             swap_labels=self.corrupted_labels,
-            swap_probability=self.corruption,
+            swap_probability=self.corruption / 100.0,
             export_path=None,
         )
         test_ds = get_test_dataset()

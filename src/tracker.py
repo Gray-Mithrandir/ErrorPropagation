@@ -1,12 +1,14 @@
 """Model train tracker
 Track on train point and allow to skip already trained
 """
-from dataclasses import dataclass, asdict
+from __future__ import annotations
+
 import json
+from collections.abc import MutableMapping
+from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Union
-from collections.abc import MutableMapping
+from typing import Dict
 
 
 class TrainType(Enum):
@@ -24,34 +26,58 @@ class TrainType(Enum):
 
 
 @dataclass(frozen=True)
-class TrainPoint:
+class TrainInfo:
     """Status of train point"""
 
-    reduction: float
-    """Reduction faction"""
-    corruption: float
-    """Corruption faction"""
+    reduction: int
+    """Reduction percent"""
+    corruption: int
+    """Corruption percent"""
     train_type: TrainType
     """Train type"""
 
     def __post_init__(self):
-        if not (0 <= self.reduction <= 1):
-            raise ValueError("Reduction must be in range [0-1]")
-        if not (0 <= self.corruption <= 1):
-            raise ValueError("Corruption must be in range [0-1]")
+        if not isinstance(self.reduction, int):
+            object.__setattr__(self, "reduction", int(self.reduction))
+        if not isinstance(self.corruption, int):
+            object.__setattr__(self, "corruption", int(self.corruption))
 
-    def dict(self) -> Dict[str, Union[str, TrainType]]:
-        """Return dict representation"""
-        return asdict(self)
+    @classmethod
+    def from_string(cls, string: str) -> TrainInfo:
+        """Create class from string representation
+        String format should be - <train_type.value>;<reduction>;<corruption>
+
+        Parameters
+        ----------
+        string: str
+            String to parse
+
+        Returns
+        -------
+        TrainInfo
+            Parsed class
+        """
+        _split = string.split(";")
+        return TrainInfo(
+            train_type=TrainType(_split[0]),
+            reduction=int(_split[1]),
+            corruption=int(_split[2]),
+        )
+
+    def to_string(self) -> str:
+        """Create string representation
+        String format - <train_type.value>;<reduction>;<corruption>
+        """
+        return f"{self.train_type.value};{self.reduction:.0f};{self.corruption:.0f}"
 
 
 @dataclass
 class TrainStatus:
     """Train status"""
 
-    train_complete: bool = False
+    train: bool = False
     """Set if model fit completed and all history exported"""
-    evaluation_exported: bool = False
+    evaluation: bool = False
     """Set if model evaluation metrics was saved"""
 
 
@@ -67,119 +93,81 @@ class RunTracker(MutableMapping):
             File name to save track info
         """
         self._path = tracker_path
-        self._points = {}  # type: Dict[TrainPoint, TrainStatus]
+        self._points = {}  # type: Dict[TrainInfo, TrainStatus]
         if not self._path.parent.exists():
             self._path.parent.mkdir(parents=True)
         if self._path.exists():
             with open(self._path, mode="r", encoding="utf-8") as json_fh:
                 import_dict = json.load(json_fh)
-                for point, value in import_dict.items():
-                    point_split = point.split(";")
-                    point_obj = TrainPoint(
-                        reduction=float(point_split[0].replace("r", "")),
-                        corruption=float(point_split[1].replace("c", "")),
-                        train_type=TrainType(point_split[2].replace("t", "")),
+                for str_info, dict_status in import_dict.items():
+                    info = TrainInfo.from_string(str_info)
+                    status = TrainStatus(
+                        train=dict_status.get("train", False),
+                        evaluation=dict_status.get("evaluation", False),
                     )
-                    self._points[point_obj] = TrainStatus(**value)
+                    self._points[info] = status
 
-    def mark_train_complete(
-        self, reduction: float, corruption: float, train_type: TrainType
-    ):
+    def set_train_complete(self, train_info: TrainInfo):
         """Mark point as train process completed
 
         Parameters
         ----------
-        reduction: float
-            Reduction fraction
-        corruption: float
-            Corruption faction
-        train_type: TrainType
-            Model train type
+        train_info: TrainInfo
+            Train information
         """
-        _point = TrainPoint(
-            reduction=reduction, corruption=corruption, train_type=train_type
-        )
-        _status = self._points.get(_point, TrainStatus())
-        _status.train_complete = True
-        self._points[_point] = _status
+        _status = self._points.get(train_info, TrainStatus())
+        _status.train = True
+        self._points[train_info] = _status
         self._save()
 
-    def mark_evaluation_complete(
-        self, reduction: float, corruption: float, train_type: TrainType
-    ):
+    def set_evaluation_complete(self, train_info: TrainInfo):
         """Mark point as evaluation process completed
 
         Parameters
         ----------
-        reduction: float
-            Reduction fraction
-        corruption: float
-            Corruption faction
-        train_type: TrainType
-            Model train type
+        train_info: TrainInfo
+            Train information
+
+        Raises
+        ------
+        ValueError
+            If train status is false
         """
-        _point = TrainPoint(
-            reduction=reduction, corruption=corruption, train_type=train_type
-        )
-        _status = self._points.get(_point, TrainStatus())
-        if not _status.train_complete:
-            raise ValueError("Can't set evaluation complete without train complete")
-        _status.evaluation_exported = True
-        self._points[_point] = _status
+        _status = self._points.get(train_info, TrainStatus())
+        if not _status.train:
+            raise ValueError("Can't set evaluation done without train")
+        _status.evaluation = True
+        self._points[train_info] = _status
         self._save()
 
-    def is_point_trained(
-        self, reduction: float, corruption: float, train_type: TrainType
-    ) -> bool:
+    def is_point_trained(self, train_info: TrainInfo) -> bool:
         """Check if train process already competed
 
         Parameters
         ----------
-        reduction: float
-            Reduction fraction
-        corruption: float
-            Corruption faction
-        train_type: TrainType
-            Model train type
+        train_info: TrainInfo
+            Train information
         """
-        _point = TrainPoint(
-            reduction=reduction, corruption=corruption, train_type=train_type
-        )
-        return _point in self._points and self._points[_point].train_complete
+        return self._points.get(train_info, TrainStatus).train
 
-    def is_point_evaluated(
-        self, reduction: float, corruption: float, train_type: TrainType
-    ) -> bool:
+    def is_point_evaluated(self, train_info: TrainInfo) -> bool:
         """Check if evaluation process already competed
 
         Parameters
         ----------
-        reduction: float
-            Reduction fraction
-        corruption: float
-            Corruption faction
-        train_type: TrainType
-            Model train type
+        train_info: TrainInfo
+            Train information
         """
-        _point = TrainPoint(
-            reduction=reduction, corruption=corruption, train_type=train_type
-        )
-        return _point in self._points and self._points[_point].evaluation_exported
+        return self._points.get(train_info, TrainStatus).evaluation
 
     def __getitem__(self, item):
-        if not isinstance(item, TrainPoint):
-            return NotImplemented
         return self._points.get(item, TrainStatus())
 
     def __setitem__(self, key, value):
-        if not (isinstance(key, TrainPoint) and isinstance(value, TrainStatus)):
-            return NotImplemented
         self._points[key] = value
         self._save()
 
     def __delitem__(self, key):
-        if not isinstance(key, TrainPoint):
-            return NotImplemented
         del self._points[key]
         self._save()
 
@@ -191,10 +179,7 @@ class RunTracker(MutableMapping):
 
     def _save(self):
         export_dict = {
-            f"r{point.reduction};c{point.corruption};t{point.train_type.value}": asdict(
-                status
-            )
-            for point, status in self._points.items()
+            point.to_string(): asdict(status) for point, status in self._points.items()
         }
         with open(self._path, mode="w", encoding="utf-8") as json_fh:
-            json.dump(export_dict, json_fh, indent=4)
+            json.dump(export_dict, json_fh, indent=4, sort_keys=True)
