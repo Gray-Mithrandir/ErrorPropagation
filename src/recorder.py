@@ -176,7 +176,7 @@ class TrainStatistics:
                         y_axis=y_values,
                         values=z_values,
                         titles=titles,
-                        invert_bar="loss" in title,
+                        invert_bar="loss" in title.lower(),
                         export_path=self.export_folder / f"{title} ({_type.value}).png",
                     )
 
@@ -256,7 +256,7 @@ class TrainStatistics:
         str
             First empty or matched cell
         """
-        offset_col = 3 + list(_type for _type in TrainType).index(train_info.train_type)
+        offset_col = 2 + list(_type for _type in TrainType).index(train_info.train_type)
         row_index = 1
         for row_index, row in enumerate(
             sheet.iter_rows(min_row=row_index, min_col=1, max_col=5), start=row_index
@@ -271,7 +271,7 @@ class TrainStatistics:
                 return row[offset_col].coordinate
         sheet[f"A{row_index+1}"] = train_info.reduction
         sheet[f"B{row_index+1}"] = train_info.corruption
-        cell_coord = f"{get_column_letter(offset_col)}{row_index+1}"
+        cell_coord = f"{get_column_letter(offset_col+1)}{row_index+1}"
         self.logger.info("Cell not found.Appending %s", cell_coord)
         return cell_coord
 
@@ -293,7 +293,7 @@ class TrainStatistics:
             First empty or matched cells (for all classes)
         """
         offset_col = (
-            2 + list(_type for _type in TrainType).index(train_info.train_type) * 3
+            2 + list(_type for _type in TrainType).index(train_info.train_type) * 4
         )
         row_index = 1
         for row_index, row in enumerate(
