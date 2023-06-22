@@ -201,7 +201,7 @@ class NetworkInterface(ABC):
         )
 
         self.logger.info("Starting model training!")
-        if self.train_type is TrainType.BALANCED:
+        if self.train_type is TrainType.WEIGHTED:
             class_weights = get_train_weights(train_ds)
             self.logger.info("Training weights %s", class_weights)
         else:
@@ -315,24 +315,12 @@ class NetworkInterface(ABC):
             write_images=True,
             write_graph=True,
         )
-        reduce_lr_callback = tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="val_accuracy",
-            factor=0.1,
-            patience=3,
-            verbose=1,
-            cooldown=3,
-        )
-        early_stop_callback = tf.keras.callbacks.EarlyStopping(
-            monitor="val_accuracy", verbose=1, patience=3, start_from_epoch=5
-        )
 
         csv_logger = tf.keras.callbacks.CSVLogger(f"{csv_epoch_path}")
         return (
             model_checkpoint_callback,
             tensorboard_callback,
             csv_logger,
-            reduce_lr_callback,
-            early_stop_callback,
         )
 
     @staticmethod

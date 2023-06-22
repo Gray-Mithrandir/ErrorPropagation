@@ -1,4 +1,6 @@
 """LeNet-5 implementation"""
+from typing import Tuple
+
 import tensorflow as tf
 
 from networks.base import NetworkInterface
@@ -16,7 +18,7 @@ class Network(NetworkInterface):
 
     @property
     def epochs(self) -> int:
-        return 80
+        return 40
 
     def create_model(self, augment: bool = True) -> tf.keras.Model:
         """Create LeNet-5 model
@@ -45,3 +47,18 @@ class Network(NetworkInterface):
         model.add(tf.keras.layers.Dense(units=84, activation="relu"))
         model.add(tf.keras.layers.Dense(units=3, activation="softmax"))
         return model
+
+    def callbacks(self) -> Tuple[tf.keras.callbacks.Callback, ...]:
+        """Adds ReduceLROnPlateau  and EarlyStopping to callbacks"""
+        origin_callbacks = super().callbacks()
+        reduce_lr_callback = tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="val_accuracy",
+            factor=0.1,
+            patience=3,
+            verbose=1,
+            cooldown=3,
+        )
+        early_stop_callback = tf.keras.callbacks.EarlyStopping(
+            monitor="val_accuracy", verbose=1, patience=3, start_from_epoch=5
+        )
+        return origin_callbacks + (reduce_lr_callback, early_stop_callback)

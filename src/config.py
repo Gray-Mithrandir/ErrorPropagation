@@ -11,6 +11,11 @@ class PreProcessing:
     test_images_per_class = 50
     """Number of test image used for performance testing"""
 
+    @property
+    def input_shape(self):
+        """Return image input shape (image size, one channel)"""
+        return [self.image_size[0], self.image_size[1], 1]
+
 
 @dataclass(frozen=True)
 class PlotSettings:
