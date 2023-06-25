@@ -144,7 +144,7 @@ def get_dataset(
     if export_path is not None:
         if train:
             ds_status["weights"] = {}
-            ds_status["weights"]["origin"] = get_train_weights(combined)
+            ds_status["weights"]["origin"] = get_train_weights()
             for class_name, weight in zip(origin_ds.class_names, ds_status["weights"]["origin"].values()):
                 ds_status["weights"][class_name] = weight
             _file = export_path / "train_dataset.json"
@@ -175,20 +175,23 @@ def get_test_dataset() -> tf.data.Dataset:
     )
 
 
-def get_train_weights(dataset: tf.data.Dataset) -> Dict[int, float]:
+def get_train_weights() -> Dict[int, float]:
     """Calculate train weights of given dataset
-
-    Parameters
-    ----------
-    dataset: tf.data.Dataset
-        Dataset to calculate weights
-
 
     Returns
     -------
     Dict[int, float]
         Weights dictionary
     """
+    _settings = PreProcessing()
+    dataset = tf.keras.utils.image_dataset_from_directory(
+        directory=f'{Path("data", "cooked").absolute()}',
+        label_mode="categorical",
+        color_mode="grayscale",
+        batch_size=None,
+        image_size=_settings.image_size,
+        shuffle=True,
+    )
     total = dataset.reduce(0, _create_counter()).numpy()
     weights = {}
     class_index = 0
@@ -201,10 +204,10 @@ def get_train_weights(dataset: tf.data.Dataset) -> Dict[int, float]:
         weights[class_index] = count
         class_index += 1
     for class_index in list(weights.keys()):
-        weights[class_index] = (1.0 / weights[class_index]) * (total / len(weights.keys()))
+        weights[class_index] = (1.0 / weights[class_index]) * (
+            total / len(weights.keys())
+        )
     return weights
-
-
 
 
 def create_class_filter(metric):

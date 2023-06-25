@@ -202,7 +202,7 @@ class NetworkInterface(ABC):
 
         self.logger.info("Starting model training!")
         if self.train_type is TrainType.WEIGHTED:
-            class_weights = get_train_weights(train_ds)
+            class_weights = get_train_weights()
             self.logger.info("Training weights %s", class_weights)
         else:
             class_weights = None

@@ -14,11 +14,11 @@ class Network(NetworkInterface):
 
     @property
     def batch_size(self) -> int:
-        return 16
+        return 32
 
     @property
     def epochs(self) -> int:
-        return 40
+        return 80
 
     def create_model(self, augment: bool = True) -> tf.keras.Model:
         """Create LeNet-5 model
@@ -59,6 +59,6 @@ class Network(NetworkInterface):
             cooldown=3,
         )
         early_stop_callback = tf.keras.callbacks.EarlyStopping(
-            monitor="val_accuracy", verbose=1, patience=3, start_from_epoch=5
+            monitor="val_accuracy", verbose=1, patience=5, start_from_epoch=10
         )
         return origin_callbacks + (reduce_lr_callback, early_stop_callback)
