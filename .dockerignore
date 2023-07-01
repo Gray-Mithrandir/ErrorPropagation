@@ -18,3 +18,5 @@ logs/
 reports/
 # Train history folder
 history/
+# TMPFS folder
+tmp/

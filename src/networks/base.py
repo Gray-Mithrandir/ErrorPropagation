@@ -8,8 +8,7 @@ import tensorflow as tf
 
 import visualization
 from config import AugmentationSettings, PreProcessing
-from load_dataset import (get_dataset, get_test_dataset, get_train_weights,
-                          prefetch_dataset)
+from dataset import cook_dataset, save_dataset_statistics, get_dataset, get_test_dataset
 from tracker import TrainInfo, TrainType
 
 
@@ -169,51 +168,39 @@ class NetworkInterface(ABC):
         tf.keras.callbacks.History
             Train history
         """
+        class_weights = cook_dataset(
+            reduction=self.reduction / 100.0,
+            corruption={
+                ("covid19", "pneumonia"): self.corruption / 100.0,
+                ("pneumonia", "covid19"): self.corruption / 100.0,
+            },
+            balance=self.train_type is TrainType.BALANCED
+        )
+        save_dataset_statistics(self.report_path)
         model = self.create_model(augment=True)
         self.logger.info(
             "Starting training on dataset reduction of %d%% with corruption %d%%",
             self.reduction,
             self.corruption,
         )
-        train_ds = get_dataset(
-            reduction=self.reduction / 100.0,
-            train=True,
-            balance=self.train_type == TrainType.BALANCED,
-            swap_labels=("covid19", "pneumonia"),
-            swap_probability=self.corruption / 100.0,
-            export_path=self.report_path,
-        )
-        prefetched_ds = prefetch_dataset(train_ds, batch_size=self.batch_size)
-        validation_ds = get_dataset(
-            reduction=self.reduction / 100.0,
-            train=False,
-            balance=False,
-            swap_labels=("covid19", "pneumonia"),
-            swap_probability=self.corruption / 100.0,
-            export_path=self.report_path,
-        )
+        train_ds = get_dataset(training=True, batch=self.batch_size)
+        validation_ds = get_dataset(training=False, batch=self.batch_size)
 
         self.logger.info("Compile model")
         model.compile(
             loss=tf.keras.metrics.categorical_crossentropy,
-            optimizer=tf.keras.optimizers.Adam(),
+            optimizer=tf.keras.optimizers.SGD(),
             metrics=["accuracy"],
         )
 
         self.logger.info("Starting model training!")
-        if self.train_type is TrainType.WEIGHTED:
-            class_weights = get_train_weights()
-            self.logger.info("Training weights %s", class_weights)
-        else:
-            class_weights = None
-
         history = model.fit(
-            prefetched_ds,
+            train_ds,
             epochs=self.epochs,
             verbose=1,
-            validation_data=prefetch_dataset(validation_ds, batch_size=self.batch_size),
+            validation_data=validation_ds,
             callbacks=self.callbacks(),
-            class_weight=class_weights,
+            class_weight=class_weights if self.train_type is TrainType.WEIGHTED else None,
         )
         self.logger.info("Loading best weights")
         model.load_weights(self.checkpoint_path).expect_partial()
@@ -237,57 +224,21 @@ class NetworkInterface(ABC):
             metrics=["accuracy"],
         )
         model.load_weights(self.checkpoint_path)
-        validation_ds = get_dataset(
-            reduction=self.reduction / 100.0,
-            train=False,
-            balance=False,
-            swap_labels=self.corrupted_labels,
-            swap_probability=self.corruption / 100.0,
-            export_path=None,
-        )
-        test_ds = get_test_dataset()
         self.logger.info("Plotting performance plots")
         visualization.plot_performance(
             model=model,
-            dataset=validation_ds,
-            labels=test_ds.class_names,
-            num_images=3,
-            export_path=self.report_path / "performance_on_validation_ds.png",
-        )
-        visualization.plot_performance(
-            model=model,
-            dataset=test_ds,
-            labels=test_ds.class_names,
-            num_images=3,
-            export_path=self.report_path / "performance_on_test_ds.png",
+            export_path=self.report_path
         )
         self.logger.info("Plotting confusion matrix")
         visualization.plot_confusion_matrix(
             model=model,
-            dataset=validation_ds,
-            labels=test_ds.class_names,
-            export_path=self.report_path / "confusion_matrix_on_validation_ds.png",
-        )
-        visualization.plot_confusion_matrix(
-            model=model,
-            dataset=test_ds,
-            labels=test_ds.class_names,
-            export_path=self.report_path / "confusion_matrix_on_test_ds.png",
+            export_path=self.report_path,
         )
         self.logger.info("Saving performance metrics")
         visualization.save_classification_report(
             model=model,
-            dataset=validation_ds,
-            labels=test_ds.class_names,
-            export_path=self.report_path / "classification_report_on_validation_ds",
+            export_path=self.report_path,
         )
-        visualization.save_classification_report(
-            model=model,
-            dataset=test_ds,
-            labels=test_ds.class_names,
-            export_path=self.report_path / "classification_report_on_test_ds",
-        )
-        self.logger.info("Saving evaluation report")
         return model
 
     def callbacks(self) -> Tuple[tf.keras.callbacks.Callback, ...]:

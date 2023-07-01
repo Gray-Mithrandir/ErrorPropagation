@@ -20,8 +20,8 @@
         <option name="volumeBindings">
           <list>
             <DockerVolumeBindingImpl>
-              <option name="containerPath" value="/opt/project/data" />
-              <option name="hostPath" value="$PROJECT_DIR$/data" />
+              <option name="containerPath" value="/opt/project/data/raw" />
+              <option name="hostPath" value="$PROJECT_DIR$/data/raw" />
               <option name="readOnly" value="true" />
             </DockerVolumeBindingImpl>
             <DockerVolumeBindingImpl>
@@ -35,6 +35,10 @@
             <DockerVolumeBindingImpl>
               <option name="containerPath" value="/opt/project/history" />
               <option name="hostPath" value="$PROJECT_DIR$/history" />
+            </DockerVolumeBindingImpl>
+            <DockerVolumeBindingImpl>
+              <option name="containerPath" value="/opt/project/data" />
+              <option name="hostPath" value="$PROJECT_DIR$/tmp" />
             </DockerVolumeBindingImpl>
           </list>
         </option>

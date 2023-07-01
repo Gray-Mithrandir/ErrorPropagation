@@ -10,6 +10,7 @@ from logger import init_logger
 from networks.base import NetworkInterface
 from recorder import TrainStatistics
 from tracker import RunTracker, TrainType
+from dataset import prepare_dataset
 
 
 def main():
@@ -24,10 +25,11 @@ def main():
     network.plot_model()
     train_tracker = RunTracker(Path("logs", network.name(), "tracker.json"))
     excel_stats = TrainStatistics(Path("reports", network.name()))
+    prepare_dataset(Path("reports", network.name()))
 
     for train_type in TrainType:
         logger.info("Starting train type: %s", train_type.value)
-        for corruption in np.arange(0.0, 60.0, 5):
+        for corruption in np.arange(0.0, 30.0, 0.5):
             logger.info("Label corruption - %.0f%%", corruption)
             for reduction in np.arange(0.0, 100, 10):
                 logger.info("Dataset reduction - %.0f%%", reduction)
@@ -51,6 +53,7 @@ def main():
                     train_tracker.set_evaluation_complete(network.train_point)
     excel_stats.plot_class_summary()
     excel_stats.plot_train_summary()
+
 
 if __name__ == "__main__":
     main()

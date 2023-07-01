@@ -4,13 +4,16 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Tuple
 
+import numpy as np
 import openpyxl
 import tensorflow as tf
+from PIL import Image
 from openpyxl.styles import Alignment
 from openpyxl.utils.cell import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from load_dataset import create_class_filter, get_test_dataset
+from config import PreProcessing
+from dataset import get_dataset, get_test_dataset, class_interator, image_iterator
 from tracker import TrainInfo, TrainType
 from visualization import plot_summary
 
@@ -70,19 +73,22 @@ class TrainStatistics:
         train_info: TrainInfo
             Train information
         """
-        test_ds = get_test_dataset()
+        labels = [
+            class_path
+            for class_path in class_interator(Path("data", "cooked").absolute())
+        ]
+        _settings = PreProcessing()
         self.logger.info("Recording evaluation metrics for %s", train_info)
         with self._get_workbook() as workbook:
             loss_cells = self._get_class_cell(workbook["LossPerClass"], train_info)
             acc_cells = self._get_class_cell(workbook["AccuracyPerClass"], train_info)
             for class_index, (a_cell, l_cell) in enumerate(zip(acc_cells, loss_cells)):
                 if class_index < 3:
-                    _class_ds = test_ds.filter(create_class_filter(class_index)).batch(
-                        1
-                    )
-                    loss, accuracy = model.evaluate(_class_ds)
+                    ds = np.array([np.asarray(Image.open(img_path)) for img_path in image_iterator(labels[class_index])])
+                    out = np.array([tf.one_hot(class_index, 3)] * len(ds))
+                    loss, accuracy = model.evaluate(ds, out, verbose=0)
                 else:
-                    loss, accuracy = model.evaluate(test_ds.batch(16))
+                    loss, accuracy = model.evaluate(get_test_dataset(16), verbose=0)
                 workbook["AccuracyPerClass"][a_cell] = accuracy
                 workbook["LossPerClass"][l_cell] = loss
 
@@ -197,9 +203,11 @@ class TrainStatistics:
 
     def _create_new(self) -> None:
         """Create new workbook"""
-        classes_names = get_test_dataset().class_names + [
-            "total",
+        classes_names = [
+            class_path.name.capitalize()
+            for class_path in class_interator(Path("data", "raw").absolute())
         ]
+        classes_names.append("total")
         new_wb = openpyxl.Workbook()
         new_wb.create_sheet("Accuracy")
         new_wb.create_sheet("Loss")
