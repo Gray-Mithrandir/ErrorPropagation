@@ -29,9 +29,9 @@ def main():
 
     for train_type in TrainType:
         logger.info("Starting train type: %s", train_type.value)
-        for corruption in np.arange(0.0, 30.0, 0.5):
+        for corruption in np.arange(0.0, 60.0, 5):
             logger.info("Label corruption - %.0f%%", corruption)
-            for reduction in np.arange(0.0, 100, 10):
+            for reduction in np.arange(0.0, 100.0, 10):
                 logger.info("Dataset reduction - %.0f%%", reduction)
                 network = model_class()
                 network.train_type = train_type

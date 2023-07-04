@@ -418,15 +418,6 @@ def save_dataset_statistics(export_path: Path) -> None:
         autopct=lambda x: f"{x:.1f}%\n({int(np.round(x/100.*np.sum(np.array(counts).flatten()))):d})",
     )
     ax.set(aspect="equal", title="Dataset balance and corruption")
-    plt.legend(
-        loc=(-0.3, 0),
-        labels=[
-            f"{name}({sub_name})"
-            for sub_name in ["corrected", "corrupted"]
-            for name in names
-        ],
-    )
-
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
 
@@ -444,7 +435,14 @@ def save_dataset_statistics(export_path: Path) -> None:
             horizontalalignment=horizontalalignment,
             **kw,
         )
-
+    plt.legend(
+        loc=(0.8, -0.1),
+        labels=[
+            f"{name}({sub_name})"
+            for sub_name in ["corrected", "corrupted"]
+            for name in names
+        ],
+    )
     plt.savefig(export_path / "dataset_balance.png")
     plt.close()
 
