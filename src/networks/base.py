@@ -200,7 +200,7 @@ class NetworkInterface(ABC):
             verbose=1,
             validation_data=validation_ds,
             callbacks=self.callbacks(),
-            class_weight=class_weights if self.train_type is TrainType.WEIGHTED else None,
+            class_weight=dict(enumerate(class_weights)) if self.train_type is TrainType.WEIGHTED else None,
         )
         self.logger.info("Loading best weights")
         model.load_weights(self.checkpoint_path).expect_partial()
